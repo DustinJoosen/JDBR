@@ -1,4 +1,4 @@
-package com.jdbr;
+package com.syter6.jdbr;
 
 public enum ColumnType {
 	STRING,

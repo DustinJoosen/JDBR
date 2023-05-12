@@ -1,4 +1,4 @@
-package com.jdbr.models;
+package com.syter6.jdbr.models;
 
 public class Product {
 	public int num;

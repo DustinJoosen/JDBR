@@ -1,4 +1,4 @@
-package com.jdbr;
+package com.syter6.jdbr;
 
 import java.lang.reflect.Field;
 import java.sql.*;

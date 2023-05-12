@@ -1,9 +1,9 @@
-package com.jdbr.repositories;
+package com.syter6.jdbr.repositories;
 
-import com.jdbr.BaseRepository;
-import com.jdbr.Column;
-import com.jdbr.ColumnType;
-import com.jdbr.models.Product;
+import com.syter6.jdbr.BaseRepository;
+import com.syter6.jdbr.Column;
+import com.syter6.jdbr.ColumnType;
+import com.syter6.jdbr.models.Product;
 
 import java.util.ArrayList;
 
