@@ -16,7 +16,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 		this.table_name = table_name;
 		this.columns = columns;
 
-		this.connectToDatabase();
+		this.conn = this.connectToDatabase();
 	}
 
 	public void closeConnection() {
@@ -28,17 +28,20 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 		}
 	}
 
-	private void connectToDatabase() {
+	private Connection connectToDatabase() {
 		String url = DatabaseAuth.URL;
 		String username = DatabaseAuth.USERNAME;
 		String password = DatabaseAuth.PASSWORD;
 
 		try {
-			this.conn = DriverManager.getConnection(url, username, password);
-			this.conn.setAutoCommit(false);
+			Connection conn;
+			conn = DriverManager.getConnection(url, username, password);
+			conn.setAutoCommit(false);
+			return conn;
 		} catch (SQLException ex) {
 			System.out.println("exception when connecting to the database");
 			System.out.println(ex.getMessage());
+			return null;
 		}
 	}
 
@@ -370,6 +373,23 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 	/**
 	 *
+	 * Deletes all records of the table.
+	 *
+	 * @return 			a boolean, indicating whether the update has worked.
+	 */
+	@Override
+	public boolean truncate() {
+		for (T model: this.getAll()) {
+			if (!this.delete(model)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 *
 	 * Deletes the given record. It uses the primary key of the data.
 	 *
 	 * @param  data	the model to be deleted
@@ -504,4 +524,5 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 		}
 
 	}
+
 }
