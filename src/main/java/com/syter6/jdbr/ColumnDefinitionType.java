@@ -1,6 +1,6 @@
 package com.syter6.jdbr;
 
-public enum ColumnType {
+public enum ColumnDefinitionType {
 	STRING,
 	INT,
 	BOOL,
