@@ -12,4 +12,5 @@ public interface IDataRepository<T> {
 	boolean updateField(String primary_key, String column, String new_value, ColumnType column_type);
 	boolean update(T data);
 	boolean delete(T data);
+	boolean truncate();
 }
