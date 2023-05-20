@@ -3,7 +3,9 @@ package com.syter6.jdbr;
 import java.lang.reflect.Field;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.function.Supplier;
 
 public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
@@ -14,10 +16,13 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 	protected Connection conn;
 
-	public BaseRepository(String table_name) {
+	protected Supplier<T> supplier;
+
+	public BaseRepository(String table_name, Supplier<T> supplier) {
 		this.conn = this.connectToDatabase();
 
 		this.table_name = table_name;
+		this.supplier = supplier;
 
 		this.columnDefinitions = this.getColumnDefinitions();
 		this.pk = this.columnDefinitions.get(0);
@@ -75,13 +80,40 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 	/**
 	 *
-	 * An abstract method. It's implementations recieve an ArrayList of values.
-	 * The method is expected to generate a new object, and assign everything to the correct attribute.
+	 * A conversion method that converts an ArrayList of values, into the given type.
 	 *
 	 * @param  values  	a list of all values used to instantiate the new object
 	 * @return      	the newly generated object.
 	 */
-	protected abstract T generate(ArrayList<String> values);
+	public T generate(ArrayList<String> values) {
+		T generic_obj = this.supplier.get();
+		Class<?> clazz = generic_obj.getClass();
+
+		// For datetimes
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+		try {
+			int i = 0;
+			for (ColumnDefinition def: this.columnDefinitions) {
+				Field field = clazz.getDeclaredField(def.name);
+				field.setAccessible(true);
+
+				switch (def.type) {
+					case STRING -> field.set(generic_obj, values.get(i++));
+					case INT -> field.set(generic_obj, Integer.parseInt(values.get(i++)));
+					case DATE -> field.set(generic_obj, LocalDate.parse(values.get(i++), formatter));
+					case BOOL -> field.set(generic_obj, values.get(i++).equals("1"));
+					case DOUBLE -> field.set(generic_obj, Double.parseDouble(values.get(i++)));
+				};
+			}
+
+			return generic_obj;
+
+		} catch (NoSuchFieldException | IllegalAccessException ex) {
+			System.out.println(ex.getMessage());
+			return null;
+		}
+	}
 
 	/**
 	 *

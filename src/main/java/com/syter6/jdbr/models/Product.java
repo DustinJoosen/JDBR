@@ -9,6 +9,10 @@ public class Product {
 		this.name = name;
 	}
 
+	public Product() {
+
+	}
+
 	@Override
 	public String toString() {
 		return "#" + this.num + ": " + this.name;

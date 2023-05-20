@@ -37,12 +37,12 @@ public class ColumnDefinition {
 	public static ColumnDefinitionType typeFrom(String type) {
 		if (type.contains("varchar")) {
 			return ColumnDefinitionType.STRING;
+		} else if (type.contains("tinyint")) {
+			return ColumnDefinitionType.BOOL;
 		} else if (type.contains("int")) {
 			return ColumnDefinitionType.INT;
 		} else if (type.contains("decimal")) {
 			return ColumnDefinitionType.DOUBLE;
-		} else if (type.contains("tinyint")) {
-			return ColumnDefinitionType.BOOL;
 		} else if (type.contains("datetime")) {
 			return ColumnDefinitionType.DATE;
 		} else {
