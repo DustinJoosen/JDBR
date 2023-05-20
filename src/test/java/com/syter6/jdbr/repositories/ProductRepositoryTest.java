@@ -1,7 +1,6 @@
 package com.syter6.jdbr.repositories;
 
 import com.syter6.jdbr.models.Product;
-import jdk.jfr.StackTrace;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

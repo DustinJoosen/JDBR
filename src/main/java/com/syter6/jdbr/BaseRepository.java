@@ -8,15 +8,19 @@ import java.util.ArrayList;
 public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 	protected String table_name;
-	protected Column[] columns;
+
+	protected ArrayList<ColumnDefinition> columnDefinitions;
+	protected ColumnDefinition pk;
 
 	protected Connection conn;
 
-	public BaseRepository(String table_name, Column[] columns) {
-		this.table_name = table_name;
-		this.columns = columns;
-
+	public BaseRepository(String table_name) {
 		this.conn = this.connectToDatabase();
+
+		this.table_name = table_name;
+
+		this.columnDefinitions = this.getColumnDefinitions();
+		this.pk = this.columnDefinitions.get(0);
 	}
 
 	public void closeConnection() {
@@ -39,8 +43,32 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			conn.setAutoCommit(false);
 			return conn;
 		} catch (SQLException ex) {
-			System.out.println("exception when connecting to the database");
+			System.out.println("an exception occured when connecting to the database");
 			System.out.println(ex.getMessage());
+			return null;
+		}
+	}
+
+	private ArrayList<ColumnDefinition> getColumnDefinitions() {
+		String query = "SHOW COLUMNS FROM " + this.table_name;
+
+		ArrayList<ColumnDefinition> columnDefinitions = new ArrayList<>();
+
+		try {
+			Statement statement = this.conn.createStatement();
+			ResultSet result_set = statement.executeQuery(query);
+
+			while (result_set.next()) {
+				columnDefinitions.add(new ColumnDefinition(
+						result_set.getString("field"),
+						ColumnDefinition.typeFrom(result_set.getString("type"))));
+			}
+
+			statement.close();
+			return columnDefinitions;
+
+		} catch (SQLException ex) {
+			System.out.println("===EXCEPTION===\nUsed SQL query (not always the problem):");
 			return null;
 		}
 	}
@@ -93,8 +121,8 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 				ArrayList<String> values = new ArrayList<>();
 
 				// add all columns.
-				for (Column column : this.columns) {
-					values.add(result_set.getString(column.name));
+				for (ColumnDefinition columnDefinition : this.columnDefinitions) {
+					values.add(result_set.getString(columnDefinition.name));
 				}
 
 				// use values to generate model T.
@@ -136,7 +164,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			ArrayList<String> values = new ArrayList<>();
 
 			// add all columns.
-			for (Column col : this.columns) {
+			for (ColumnDefinition col : this.columnDefinitions) {
 				values.add(result_set.getString(col.name));
 			}
 
@@ -160,7 +188,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	 */
 	@Override
 	public T getById(int primary_key) {
-		return this.getBy(this.columns[0].name, String.valueOf(primary_key));
+		return this.getBy(this.pk.name, String.valueOf(primary_key));
 	}
 
 	/**
@@ -172,7 +200,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	 */
 	@Override
 	public T getById(String primary_key) {
-		return this.getBy(this.columns[0].name, primary_key);
+		return this.getBy(this.pk.name, primary_key);
 	}
 
 	/**
@@ -193,10 +221,10 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			StringBuilder query = new StringBuilder("INSERT INTO " + this.table_name + " (");
 
 			// Id, Name, Description) VALUES (
-			for (int i = 0; i < this.columns.length; i++) {
-				query.append(this.columns[i].name);
+			for (int i = 0; i < this.columnDefinitions.size(); i++) {
+				query.append(this.columnDefinitions.get(i).name);
 
-				if (i != this.columns.length - 1) {
+				if (i != this.columnDefinitions.size() - 1) {
 					query.append(", ");
 				}
 			}
@@ -205,9 +233,9 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			Class<?> c = data.getClass();
 
 			// ?, ?, ?, ?);
-			for (int i = 0; i < this.columns.length; i++) {
+			for (int i = 0; i < this.columnDefinitions.size(); i++) {
 				query.append("?");
-				if (i != this.columns.length - 1) {
+				if (i != this.columnDefinitions.size() - 1) {
 					query.append(", ");
 				}
 			}
@@ -217,8 +245,8 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			PreparedStatement statement = this.conn.prepareStatement(query.toString());
 
 			int i = 0;
-			for (Column column: this.columns) {
-				Field field = c.getDeclaredField(column.name);
+			for (ColumnDefinition columnDefinition : this.columnDefinitions) {
+				Field field = c.getDeclaredField(columnDefinition.name);
 				field.setAccessible(true);
 
 				// Get the value out of the column
@@ -226,7 +254,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 				String value = "";
 
 				// In case of an integer.
-				if (column.type == ColumnType.INT && val instanceof Integer ival) {
+				if (columnDefinition.type == ColumnDefinitionType.INT && val instanceof Integer ival) {
 					if (ival != 0) {
 						// Integer, but it has a value
 						value = val.toString();
@@ -237,7 +265,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 							value = String.valueOf(this.generateIntPK());
 						} else {
 							// Default column value
-							value = column.getEmptyValue();
+							value = columnDefinition.getEmptyValue();
 						}
 					}
 				} else {		// All other types
@@ -246,12 +274,12 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 						value = val.toString();
 					} else {
 						// Default column value
-						value = column.getEmptyValue();
+						value = columnDefinition.getEmptyValue();
 					}
 				}
 
 
-				switch (column.type) {
+				switch (columnDefinition.type) {
 					case INT -> statement.setInt(++i, Integer.parseInt(value));
 					case BOOL -> statement.setBoolean(++i, value.equals("true"));
 					case DOUBLE -> statement.setDouble(++i, Double.parseDouble(value));
@@ -285,9 +313,9 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	 * @return 			a boolean, indicating whether the update has worked.
 	 */
 	@Override
-	public boolean updateField(String primary_key, String column, String new_value, ColumnType column_type) {
+	public boolean updateField(String primary_key, String column, String new_value, ColumnDefinitionType column_type) {
 		try {
-			String query = "UPDATE " + this.table_name + " SET " + column + " = ? WHERE " + this.columns[0].name + " = ?";
+			String query = "UPDATE " + this.table_name + " SET " + column + " = ? WHERE " + this.pk.name + " = ?";
 
 			PreparedStatement statement = this.conn.prepareStatement(query);
 			statement.setString(2, primary_key);
@@ -331,28 +359,28 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			Class<?> c = data.getClass();
 
 			// start at 1 because the first item is primary key.
-			for (int i = 1; i < this.columns.length; i++) {
-				Field field = c.getDeclaredField(this.columns[i].name);
+			for (int i = 1; i < this.columnDefinitions.size(); i++) {
+				Field field = c.getDeclaredField(this.columnDefinitions.get(i).name);
 				field.setAccessible(true);
 
 				String value = field.get(data).toString();
 
 				// boolean handling
-				if (this.columns[i].type == ColumnType.BOOL) {
+				if (this.columnDefinitions.get(i).type == ColumnDefinitionType.BOOL) {
 					value = value.equals("true") ? "1" : "0";
 				}
 
-				query.append(this.columns[i].name).append(" = '").append(value).append("'");
+				query.append(this.columnDefinitions.get(i).name).append(" = '").append(value).append("'");
 
-				if (i != this.columns.length - 1) {
+				if (i != this.columnDefinitions.size() - 1) {
 					query.append(", ");
 				}
 			}
 
-			Field pk = c.getDeclaredField(this.columns[0].name);
+			Field pk = c.getDeclaredField(this.pk.name);
 			pk.setAccessible(true);
 
-			query.append(" WHERE ").append(this.columns[0].name).append(" = '").append(pk.get(data)).append("'");
+			query.append(" WHERE ").append(this.pk.name).append(" = '").append(pk.get(data)).append("'");
 
 			// Executing the query
 			Statement statement = this.conn.createStatement();
@@ -405,13 +433,13 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			// Retrieving the primary key value.
 			Class<?> c = data.getClass();
 
-			Field primary_key = c.getDeclaredField(this.columns[0].name);
+			Field primary_key = c.getDeclaredField(this.pk.name);
 			primary_key.setAccessible(true);
 
 			String pk_val = primary_key.get(data).toString();
 
 			// Building the SQL query
-			String query = String.format("DELETE FROM %s WHERE %s = ?", this.table_name, this.columns[0].name);
+			String query = String.format("DELETE FROM %s WHERE %s = ?", this.table_name, this.pk.name);
 
 			// Executing the query
 			PreparedStatement statement = this.conn.prepareStatement(query);
@@ -453,11 +481,11 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 		int i = 0;
 		for (T record: records) {
 
-			String[] column_data = new String[this.columns.length];
+			String[] column_data = new String[this.columnDefinitions.size()];
 
-			for (int j = 0; j < this.columns.length; j++) {
+			for (int j = 0; j < this.columnDefinitions.size(); j++) {
 				try {
-					Field field = c.getDeclaredField(this.columns[j].name);
+					Field field = c.getDeclaredField(this.columnDefinitions.get(j).name);
 					field.setAccessible(true);
 
 					var val = field.get(record);
@@ -483,8 +511,8 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 		// Head
 		StringBuilder header = new StringBuilder();
-		for (i = 0; i < this.columns.length; i++) {
-			header.append(String.format("| %-25s", this.columns[i].name));
+		for (i = 0; i < this.columnDefinitions.size(); i++) {
+			header.append(String.format("| %-25s", this.columnDefinitions.get(i).name));
 		}
 		System.out.println(header + "|");
 
@@ -502,9 +530,9 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	}
 
 	protected int generateIntPK() {
-		Column pk = this.columns[0];
+		ColumnDefinition pk = this.pk;
 
-		if (pk.type != ColumnType.INT) {
+		if (pk.type != ColumnDefinitionType.INT) {
 			return -1;
 		}
 
