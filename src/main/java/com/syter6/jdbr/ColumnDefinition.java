@@ -4,16 +4,25 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 public class ColumnDefinition {
-	public String name;
-	public ColumnDefinitionType type;
+	public String attributeName;
+	public String columnName;
 
-	public ColumnDefinition(String name) {
-		this(name, ColumnDefinitionType.STRING);
+	public ColumnDefinitionType type;
+	public boolean isPrimaryKey;
+	public boolean isAutoIncremented;
+
+	public ColumnDefinition(String columnName, ColumnDefinitionType type) {
+		this(columnName, columnName, type);
 	}
 
-	public ColumnDefinition(String name, ColumnDefinitionType type) {
-		this.name = name;
+	public ColumnDefinition(String columnName, String attributeName, ColumnDefinitionType type) {
+		this.columnName = columnName;
+		this.attributeName = attributeName;
+
 		this.type = type;
+
+		this.isPrimaryKey = false;
+		this.isAutoIncremented = false;
 	}
 
 	// When the value is empty, this should be inserted:
@@ -31,7 +40,7 @@ public class ColumnDefinition {
 
 	@Override
 	public String toString() {
-		return this.name + " (" + this.type + ")";
+		return this.attributeName + " (" + this.type + ")";
 	}
 
 	public static ColumnDefinitionType typeFrom(String type) {

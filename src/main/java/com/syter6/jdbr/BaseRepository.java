@@ -3,6 +3,7 @@ package com.syter6.jdbr;
 import java.lang.reflect.Field;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.function.Supplier;
 
@@ -16,6 +17,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	protected Connection conn;
 
 	protected Supplier<T> supplier;
+	protected Class<?> clazz;
 
 	public BaseRepository(String table_name, Supplier<T> supplier) {
 		this.conn = this.connectToDatabase();
@@ -23,8 +25,15 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 		this.table_name = table_name;
 		this.supplier = supplier;
 
+		this.clazz = this.supplier.get().getClass();
+
 		this.columnDefinitions = this.getColumnDefinitions();
-		this.pk = this.columnDefinitions.get(0);
+
+		// Annotations
+		AnnotationsHandler<T> handler = new AnnotationsHandler<T>(this);
+		handler.assignAttributeNames();
+		handler.assignPK();
+		handler.assignAutoIncrements();
 	}
 
 	public void closeConnection() {
@@ -63,6 +72,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			ResultSet result_set = statement.executeQuery(query);
 
 			while (result_set.next()) {
+
 				columnDefinitions.add(new ColumnDefinition(
 						result_set.getString("field"),
 						ColumnDefinition.typeFrom(result_set.getString("type"))));
@@ -87,7 +97,6 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	 */
 	public T generate(ArrayList<String> values) {
 		T generic_obj = this.supplier.get();
-		Class<?> clazz = generic_obj.getClass();
 
 		// For datetimes
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -95,7 +104,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 		try {
 			int i = 0;
 			for (ColumnDefinition def: this.columnDefinitions) {
-				Field field = clazz.getDeclaredField(def.name);
+				Field field = this.clazz.getDeclaredField(def.attributeName);
 				field.setAccessible(true);
 
 				switch (def.type) {
@@ -154,7 +163,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 				// add all columns.
 				for (ColumnDefinition columnDefinition : this.columnDefinitions) {
-					values.add(result_set.getString(columnDefinition.name));
+					values.add(result_set.getString(columnDefinition.columnName));
 				}
 
 				// use values to generate model T.
@@ -197,7 +206,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 			// add all columns.
 			for (ColumnDefinition col : this.columnDefinitions) {
-				values.add(result_set.getString(col.name));
+				values.add(result_set.getString(col.columnName));
 			}
 
 			// use values to generate model T.
@@ -220,7 +229,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	 */
 	@Override
 	public T getById(int primary_key) {
-		return this.getBy(this.pk.name, String.valueOf(primary_key));
+		return this.getBy(this.pk.columnName, String.valueOf(primary_key));
 	}
 
 	/**
@@ -232,7 +241,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	 */
 	@Override
 	public T getById(String primary_key) {
-		return this.getBy(this.pk.name, primary_key);
+		return this.getBy(this.pk.columnName, primary_key);
 	}
 
 	/**
@@ -254,7 +263,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 			// Id, Name, Description) VALUES (
 			for (int i = 0; i < this.columnDefinitions.size(); i++) {
-				query.append(this.columnDefinitions.get(i).name);
+				query.append(this.columnDefinitions.get(i).columnName);
 
 				if (i != this.columnDefinitions.size() - 1) {
 					query.append(", ");
@@ -278,7 +287,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 			int i = 0;
 			for (ColumnDefinition columnDefinition : this.columnDefinitions) {
-				Field field = c.getDeclaredField(columnDefinition.name);
+				Field field = c.getDeclaredField(columnDefinition.attributeName);
 				field.setAccessible(true);
 
 				// Get the value out of the column
@@ -347,7 +356,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 	@Override
 	public boolean updateField(String primary_key, String column, String new_value, ColumnDefinitionType column_type) {
 		try {
-			String query = "UPDATE " + this.table_name + " SET " + column + " = ? WHERE " + this.pk.name + " = ?";
+			String query = "UPDATE " + this.table_name + " SET " + column + " = ? WHERE " + this.pk.columnName + " = ?";
 
 			PreparedStatement statement = this.conn.prepareStatement(query);
 			statement.setString(2, primary_key);
@@ -392,7 +401,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 			// start at 1 because the first item is primary key.
 			for (int i = 1; i < this.columnDefinitions.size(); i++) {
-				Field field = c.getDeclaredField(this.columnDefinitions.get(i).name);
+				Field field = c.getDeclaredField(this.columnDefinitions.get(i).attributeName);
 				field.setAccessible(true);
 
 				String value = field.get(data).toString();
@@ -402,17 +411,17 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 					value = value.equals("true") ? "1" : "0";
 				}
 
-				query.append(this.columnDefinitions.get(i).name).append(" = '").append(value).append("'");
+				query.append(this.columnDefinitions.get(i).columnName).append(" = '").append(value).append("'");
 
 				if (i != this.columnDefinitions.size() - 1) {
 					query.append(", ");
 				}
 			}
 
-			Field pk = c.getDeclaredField(this.pk.name);
+			Field pk = c.getDeclaredField(this.pk.attributeName);
 			pk.setAccessible(true);
 
-			query.append(" WHERE ").append(this.pk.name).append(" = '").append(pk.get(data)).append("'");
+			query.append(" WHERE ").append(this.pk.columnName).append(" = '").append(pk.get(data)).append("'");
 
 			// Executing the query
 			Statement statement = this.conn.createStatement();
@@ -465,13 +474,13 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 			// Retrieving the primary key value.
 			Class<?> c = data.getClass();
 
-			Field primary_key = c.getDeclaredField(this.pk.name);
+			Field primary_key = c.getDeclaredField(this.pk.attributeName);
 			primary_key.setAccessible(true);
 
 			String pk_val = primary_key.get(data).toString();
 
 			// Building the SQL query
-			String query = String.format("DELETE FROM %s WHERE %s = ?", this.table_name, this.pk.name);
+			String query = String.format("DELETE FROM %s WHERE %s = ?", this.table_name, this.pk.columnName);
 
 			// Executing the query
 			PreparedStatement statement = this.conn.prepareStatement(query);
@@ -517,7 +526,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 			for (int j = 0; j < this.columnDefinitions.size(); j++) {
 				try {
-					Field field = c.getDeclaredField(this.columnDefinitions.get(j).name);
+					Field field = c.getDeclaredField(this.columnDefinitions.get(j).attributeName);
 					field.setAccessible(true);
 
 					var val = field.get(record);
@@ -543,8 +552,9 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 		// Head
 		StringBuilder header = new StringBuilder();
-		for (i = 0; i < this.columnDefinitions.size(); i++) {
-			header.append(String.format("| %-25s", this.columnDefinitions.get(i).name));
+
+		for (ColumnDefinition def: this.columnDefinitions) {
+			header.append(String.format("| %-25s", def.columnName));
 		}
 		System.out.println(header + "|");
 
@@ -569,7 +579,7 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 		}
 
 		try {
-			String query = "SELECT MAX(" + pk.name + ") FROM " + this.table_name;
+			String query = "SELECT MAX(" + pk.attributeName + ") FROM " + this.table_name;
 			Statement statement = this.conn.createStatement();
 
 			ResultSet result_set = statement.executeQuery(query);
