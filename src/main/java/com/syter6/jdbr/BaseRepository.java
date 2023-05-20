@@ -3,7 +3,6 @@ package com.syter6.jdbr;
 import java.lang.reflect.Field;
 import java.sql.*;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.function.Supplier;
 
@@ -80,7 +79,8 @@ public abstract class BaseRepository<T> implements IDataRepository<T>  {
 
 	/**
 	 *
-	 * A conversion method that converts an ArrayList of values, into the given type.
+	 * An abstract method. It's implementations recieve an ArrayList of values.
+	 * The method is expected to generate a new object, and assign everything to the correct attribute.
 	 *
 	 * @param  values  	a list of all values used to instantiate the new object
 	 * @return      	the newly generated object.
