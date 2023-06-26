@@ -3,6 +3,7 @@ package com.syter6.jdbr;
 import com.syter6.jdbr.annotions.AutoIncrement;
 import com.syter6.jdbr.annotions.DatabaseColumn;
 import com.syter6.jdbr.annotions.PrimaryKey;
+import com.syter6.jdbr.annotions.Required;
 
 import java.lang.reflect.Field;
 
@@ -94,6 +95,22 @@ public class AnnotationsHandler<T> {
 		}
 	}
 
+	public void assignRequired() {
+		// Loop through all fields of the generic type T.
+		for (Field f: this.repos.clazz.getDeclaredFields()) {
+			var annotation = f.getAnnotation(Required.class);
+			if (annotation == null) {
+				continue;
+			}
 
+			for (ColumnDefinition def : this.repos.columnDefinitions) {
+				if (!def.attributeName.equals(f.getName())) {
+					continue;
+				}
+
+				def.isRequired = true;
+			}
+		}
+	}
 
 }
